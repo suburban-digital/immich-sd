@@ -19,6 +19,7 @@
   import CreateSharedLink from '$lib/components/photos-page/actions/create-shared-link.svelte';
   import DeleteAssets from '$lib/components/photos-page/actions/delete-assets.svelte';
   import DownloadAction from '$lib/components/photos-page/actions/download-action.svelte';
+  import StackAction from '$lib/components/photos-page/actions/stack-action.svelte';
   import FavoriteAction from '$lib/components/photos-page/actions/favorite-action.svelte';
   import RemoveFromAlbum from '$lib/components/photos-page/actions/remove-from-album.svelte';
   import SelectAllAssets from '$lib/components/photos-page/actions/select-all-assets.svelte';
@@ -269,9 +270,9 @@
   const setModeToView = async () => {
     viewMode = AlbumPageViewMode.VIEW;
     assetStore.destroy();
-    assetStore = new AssetStore({ albumId, order: albumOrder });
+    assetStore = new AssetStore({ albumId, order: albumOrder, withStacked: true });
     timelineStore.destroy();
-    timelineStore = new AssetStore({ isArchived: false }, albumId);
+    timelineStore = new AssetStore({ isArchived: false, withStacked: true }, albumId);
     await navigate(
       { targetRoute: 'current', assetId: null, assetGridRouteSearchParams: { at: oldAt?.at } },
       { replaceState: true, forceNavigate: true },
@@ -402,8 +403,8 @@
     }
   });
 
-  let assetStore = $derived(new AssetStore({ albumId, order: albumOrder }));
-  let timelineStore = $derived(new AssetStore({ isArchived: false, withPartners: true }, albumId));
+  let assetStore = $derived(new AssetStore({ albumId, order: albumOrder, withStacked: true }));
+  let timelineStore = $derived(new AssetStore({ isArchived: false, withPartners: true, withStacked: true }, albumId));
 
   let isOwned = $derived($user.id == album.ownerId);
 
@@ -422,6 +423,9 @@
       handlePromiseError(getNumberOfComments());
     }
   });
+
+  let selectedAssets = $derived(assetInteraction.selectedAssetsArray);
+  let isAssetStackSelected = $derived(selectedAssets.length === 1 && !!selectedAssets[0].stack);
 </script>
 
 <div class="flex overflow-hidden" use:scrollMemoryClearer={{ routeStartsWith: AppRoute.ALBUMS }}>
@@ -448,6 +452,13 @@
           {#if assetInteraction.isAllUserOwned}
             <ChangeDate menuItem />
             <ChangeLocation menuItem />
+            {#if assetInteraction.selectedAssets.size > 1 || isAssetStackSelected}
+              <StackAction
+                unstack={isAssetStackSelected}
+                onStack={(assetIds) => assetStore.removeAssets(assetIds)}
+                onUnstack={(assets) => assetStore.addAssets(assets)}
+              />
+            {/if}
             {#if assetInteraction.selectedAssets.size === 1}
               <MenuOption
                 text={$t('set_as_album_cover')}
@@ -584,6 +595,7 @@
             assetStore={timelineStore}
             assetInteraction={timelineInteraction}
             isSelectionMode={true}
+            withStacked
           />
         {:else}
           <AssetGrid
@@ -597,6 +609,7 @@
             showArchiveIcon
             onSelect={({ id }) => handleUpdateThumbnail(id)}
             onEscape={handleEscape}
+            withStacked
           >
             {#if viewMode !== AlbumPageViewMode.SELECT_THUMBNAIL}
               <!-- ALBUM TITLE -->
